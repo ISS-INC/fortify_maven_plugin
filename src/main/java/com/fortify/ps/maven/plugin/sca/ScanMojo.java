@@ -1,21 +1,17 @@
 package com.fortify.ps.maven.plugin.sca;
 
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
-import org.codehaus.plexus.util.cli.CommandLineException;
-import org.codehaus.plexus.util.cli.CommandLineUtils;
-import org.codehaus.plexus.util.cli.Commandline;
-import org.codehaus.plexus.util.cli.DefaultConsumer;
+import org.codehaus.plexus.util.cli.*;
 import org.codehaus.plexus.util.cli.CommandLineUtils.StringStreamConsumer;
-import org.codehaus.plexus.util.cli.StreamConsumer;
+
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Perform the scan step on a particular build ID. Optionally, upload results to
  * Software Security Center.
- * 
+ *
  * @goal scan
  * @requiresProject
  */
@@ -27,14 +23,14 @@ public class ScanMojo extends AbstractSCAMojo {
 	 * (sub-projects) built are added under a single buildId and hence analyzed
 	 * together. Otherwise each sub-module will be assigned its own default
 	 * buildId
-	 * 
+	 *
 	 * @parameter expression="${fortify.sca.toplevel.artifactId}"
 	 */
 	private String toplevelArtifactId;
 
 	/**
 	 * arguments file for running sourceanalyzer
-	 * 
+	 *
 	 * @parameter default-value="${project.build.directory}/sca-scan-args.txt"
 	 * @required
 	 * @readonly
@@ -43,7 +39,7 @@ public class ScanMojo extends AbstractSCAMojo {
 
 	/**
 	 * Build Label inserted in to generated FPR
-	 * 
+	 *
 	 * @parameter expression="${fortify.sca.buildLabel}"
 	 *            default-value="${project.artifactId}-${project.version}"
 	 */
@@ -51,7 +47,7 @@ public class ScanMojo extends AbstractSCAMojo {
 
 	/**
 	 * Build Project Name inserted in to generated FPR
-	 * 
+	 *
 	 * @parameter expression="${fortify.sca.buildProject}"
 	 *            default-value="${project.artifactId}"
 	 */
@@ -59,15 +55,25 @@ public class ScanMojo extends AbstractSCAMojo {
 
 	/**
 	 * Build Version inserted in to generated FPR
-	 * 
+	 *
 	 * @parameter expression="${fortify.sca.project}"
 	 *            default-value="${project.version}"
 	 */
 	private String buildVersion;
 
 	/**
+	 * Set the number of thread for Running in Parallel Analysis Mode.  The ideal number of worker processes is n‐2, where n represents the number of processors in your
+	 * machine. For example, if your machine has 8 processors, the ideal number of worker processes would be 6.
+	 * The minimum value is 2, but 3 or higher is recommended. A value of 3 is usually faster than when
+	 * not running in parallel, but 4 or more should provide you with the best overall speed increases.
+	 *
+	 * @parameter expression="${fortify.sca.threads}"
+	 */
+	protected String workerThreads;
+
+	/**
 	 * Location and name of the generated FPR file
-	 * 
+	 *
 	 * @parameter expression="${fortify.sca.resultsFile}" default-value=
 	 *            "${project.build.directory}/${project.artifactId}-${project.version}.fpr"
 	 */
@@ -75,21 +81,21 @@ public class ScanMojo extends AbstractSCAMojo {
 
 	/**
 	 * If true include FindBugs analysis results in the final report
-	 * 
+	 *
 	 * @parameter expression="${fortify.sca.findbugs}" default-value="false"
 	 */
 	private boolean findbugs;
 
 	/**
 	 * If true an html report summary of results is produced
-	 * 
+	 *
 	 * @parameter expression="${fortify.sca.htmlReport}" default-value="false"
 	 */
 	private boolean htmlReport;
 
 	/**
 	 * Source files are not included in the FPR file if set to false.
-	 * 
+	 *
 	 * @parameter expression="${fortify.sca.renderSources}" default-value="true"
 	 */
 	private boolean renderSources;
@@ -98,7 +104,7 @@ public class ScanMojo extends AbstractSCAMojo {
 	 * Scans the project in Quick Scan Mode, using the
 	 * fortifysca-quickscan.properties file. By default, this scan searches for
 	 * high-confidence, high-severity issues
-	 * 
+	 *
 	 * @parameter expression="${fortify.sca.quickScan}" default-value="false"
 	 */
 	private boolean quickScan;
@@ -107,21 +113,21 @@ public class ScanMojo extends AbstractSCAMojo {
 	 * Rules files to use when performing a scan. Use an outer &lt;rules&gt; tag
 	 * followed by nested &lt;rule&gt; tags to specify one or more rules files
 	 * to use when performing the scan.
-	 * 
+	 *
 	 * @parameter
 	 */
 	private String[] rules;
 
 	/**
 	 * Filter file to use when performing a scan
-	 * 
+	 *
 	 * @parameter expression="${fortify.sca.filter}"
 	 */
 	private String filter;
 
 	/**
 	 * Specifies the log file that is produced by Fortify SCA.
-	 * 
+	 *
 	 * @parameter expression="${fortify.sca.logfile}"
 	 *            default-value="${project.build.directory}/sca-scan.log"
 	 */
@@ -132,7 +138,7 @@ public class ScanMojo extends AbstractSCAMojo {
 	 * invocation failures. This is useful to get an initial scan or when you
 	 * are doing a component by component scan of a project tree. Set this to
 	 * true when performing an aggregate scan.
-	 * 
+	 *
 	 * @parameter expression="${fortify.sca.scan.failOnError}"
 	 *            default-value="false"
 	 */
@@ -141,7 +147,7 @@ public class ScanMojo extends AbstractSCAMojo {
 	/**
 	 * if true, the plugin will attempt to upload the result of the scan to
 	 * Software Security Center
-	 * 
+	 *
 	 * @parameter expression="${fortify.sca.upload}" default-value="false"
 	 */
 	protected boolean upload;
@@ -149,7 +155,7 @@ public class ScanMojo extends AbstractSCAMojo {
 	/**
 	 * location of the fortifyclient executable. Defaults to fortifyclient which
 	 * will run the version on the path, uploads will fail if non exists.
-	 * 
+	 *
 	 * @parameter expression="${fortify.sca.managerclient.executable}"
 	 *            default-value="fortifyclient"
 	 * @required
@@ -159,7 +165,7 @@ public class ScanMojo extends AbstractSCAMojo {
 	/**
 	 * If set to false the plugin will try to continue past individual scan
 	 * upload failures.
-	 * 
+	 *
 	 * @parameter expression="${fortify.sca.upload.failOnError}"
 	 *            default-value="false"
 	 */
@@ -169,7 +175,7 @@ public class ScanMojo extends AbstractSCAMojo {
 	 * Project Name of the project in Software Security Center used if upload is
 	 * set to true. Note that this must be supplied in conjunction with
 	 * projectVersion.
-	 * 
+	 *
 	 * @parameter expression="${fortify.f360.projectName}"
 	 */
 	protected String projectName;
@@ -178,7 +184,7 @@ public class ScanMojo extends AbstractSCAMojo {
 	 * Project Version of the project in Software Security Center used if upload
 	 * is set to true. Note that this must be supplied in conjunction with
 	 * projectName.
-	 * 
+	 *
 	 * @parameter expression="${fortify.f360.projectVersion}"
 	 */
 	protected String projectVersion;
@@ -187,7 +193,7 @@ public class ScanMojo extends AbstractSCAMojo {
 	 * Project ID of the project in Software Security Center used if upload is
 	 * set to true. Note that projectId will override projectName,
 	 * projectVersion combinations if supplied.
-	 * 
+	 *
 	 * @parameter expression="${fortify.f360.projectId}"
 	 * @deprecated See projectName and projectVersion
 	 */
@@ -196,17 +202,17 @@ public class ScanMojo extends AbstractSCAMojo {
 	/**
 	 * AnalysisUploadToken to use when attempting to upload fpr files to
 	 * Software Security Center
-	 * 
+	 *
 	 * @parameter expression="${fortify.f360.authToken}"
 	 */
 	protected String f360AuthToken;
 
 	/**
 	 * SSC url to interact with during uplaod actions
-	 * 
+	 *
 	 * @parameter expression="${fortify.f360.url}"
 	 */
-	protected String f360Url;	
+	protected String f360Url;
 
 	public void execute() throws MojoExecutionException, MojoFailureException {
 		if (!scanEnabled) {
@@ -235,7 +241,7 @@ public class ScanMojo extends AbstractSCAMojo {
 		getLog().info("               Upload to SSC -> " + upload);
 		if(upload){
 			getLog().info("            SSC Project Name -> " + projectName);
-			getLog().info("         SSC Project Version -> " + projectVersion);	
+			getLog().info("         SSC Project Version -> " + projectVersion);
 		}else{
 			getLog().info("Issues will not be tracked and trended without uploading to SSC.");
 		}
@@ -426,7 +432,7 @@ public class ScanMojo extends AbstractSCAMojo {
 	/**
 	 * Escapes regexp characters appearing in parameter to prevent accidental
 	 * corruption of regexp (incomplete)
-	 * 
+	 *
 	 * @param name
 	 * @return name with regexp chars escaped
 	 */
@@ -456,7 +462,7 @@ public class ScanMojo extends AbstractSCAMojo {
 
 	/**
 	 * Performs a sanity check on the supplied parameters.
-	 * 
+	 *
 	 * @throws MojoExecutionException
 	 *             if correct combination of parameters have not been supplied.
 	 */
@@ -483,7 +489,7 @@ public class ScanMojo extends AbstractSCAMojo {
 		// if supplied
 		if (!StringHelper.isDefinedNonTrivially(projectId)) {
 			if (projectName != null || projectVersion != null) {
-				getLog().warn("Supplied upload projectId: " 
+				getLog().warn("Supplied upload projectId: "
 								+ projectId
 								+ " overrides projectName/projectVersion combination: \""
 								+ projectName + "\"/\"" + projectVersion + "\"");
@@ -506,7 +512,7 @@ public class ScanMojo extends AbstractSCAMojo {
 
 	protected void constructCommandLineArgs() throws MojoExecutionException {
 		super.constructCommandLineArgs();
-		
+
 		addArg("-scan");
 
 		if (logfile != null && logfile.length() > 0) {
@@ -543,6 +549,11 @@ public class ScanMojo extends AbstractSCAMojo {
 		if (buildVersion != null && buildVersion.length() > 0) {
 			addArg("-build-version");
 			addArg(buildVersion);
+		}
+
+		if (workerThreads != null && workerThreads.length() > 0) {
+			addArg("-j");
+			addArg(workerThreads);
 		}
 
 		if (htmlReport) {

@@ -1,26 +1,24 @@
 package com.fortify.ps.maven.plugin.sca;
 
 
-import java.io.File;
-import java.util.Iterator;
-import java.util.List;
-import java.util.ArrayList;
-import java.util.regex.Pattern;
-import java.util.regex.Matcher;
-
 import org.apache.maven.artifact.Artifact;
+import org.apache.maven.execution.MavenSession;
 import org.apache.maven.model.Plugin;
 import org.apache.maven.model.Resource;
-//import org.apache.maven.plugin.PluginManager;		// For Maven 2.0 and 2.2
-import org.apache.maven.plugin.BuildPluginManager;	// For Maven 3.0
+import org.apache.maven.plugin.BuildPluginManager;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
-import org.apache.maven.plugin.logging.Log;
-import org.apache.maven.project.MavenProject;
-import org.apache.maven.execution.MavenSession;
-import org.twdata.maven.mojoexecutor.MojoExecutor;
-import org.twdata.maven.mojoexecutor.MojoExecutor.ExecutionEnvironment;
 import org.codehaus.plexus.util.xml.Xpp3Dom;
+import org.twdata.maven.mojoexecutor.MojoExecutor;
+
+import java.io.File;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+//import org.apache.maven.plugin.PluginManager;		// For Maven 2.0 and 2.2
 
 /**
  * Translate your application to a particular build ID.
@@ -100,6 +98,13 @@ public class TranslateMojo extends AbstractSCAMojo {
 	 * @readonly
 	 */
     private File testClassesDirectory;
+
+	/**
+	 * If set to true compiling the source code is skipped.
+	 *
+	 * @parameter expression="${fortify.sca.compile.exclude}" default-value="false"
+	 */
+    private boolean skipCompile;
 
 	/**
 	 * If set to true tests are also included in the analysis.  It defaults to
@@ -265,8 +270,10 @@ public class TranslateMojo extends AbstractSCAMojo {
 		identifyJavaSource();
 
 		if (packaging.equals("pom")) {
-		    getLog().info("Packaging is POM. Skipping since its modules will be translated.");
-		} else if (packaging.equals("jar") || packaging.equals("war") || packaging.equals("ear") || packaging.equals("ejb") || packaging.equals("maven-plugin") || packaging.equals("bundle")){
+		    getLog().info("Packaging is POM. Attempting a wide open translation.");
+			compileSourceRoots.add(project.getBasedir().toString());
+		}
+		if (packaging.equals("pom") || packaging.equals("jar") || packaging.equals("war") || packaging.equals("ear") || packaging.equals("ejb") || packaging.equals("maven-plugin") || packaging.equals("bundle")){
 			logBasicInfo();
 			translateJavaSources(); // Always translate the Java sources in a project.
 			if (packaging.equals("war")) {
@@ -282,7 +289,7 @@ public class TranslateMojo extends AbstractSCAMojo {
 	
 	private void compileJavaSource() throws MojoExecutionException {
 		
-		if (!classesDirectory.exists() || !FileHelper.containsClassFiles(classesDirectory)) {
+		if (!skipCompile && (!classesDirectory.exists() || !FileHelper.containsClassFiles(classesDirectory))) {
 			Plugin compilerPlugin = null;
 			
 			for( Plugin plug : plugins) {
